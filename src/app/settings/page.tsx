@@ -34,20 +34,34 @@ export default function SettingsPage() {
   const [testing, setTesting] = useState<string | null>(null)
   const [testResult, setTestResult] = useState<Record<string, any>>({})
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})
+  // Track which fields the user actually edited (to avoid sending masked values back)
+  const [dirtyFields, setDirtyFields] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    fetch('/api/settings').then(r => r.json()).then(setSettings)
+    fetch('/api/settings').then(r => r.json()).then(data => {
+      setSettings(data)
+      setDirtyFields(new Set())
+    })
   }, [])
 
   const handleSave = async () => {
     setSaving(true)
+    // Only send fields that are not masked OR that the user explicitly edited
+    const payload: Record<string, string> = {}
+    for (const [key, value] of Object.entries(settings)) {
+      const isMasked = typeof value === 'string' && (value.includes('...') || value === '***')
+      if (!isMasked || dirtyFields.has(key)) {
+        payload[key] = value as string
+      }
+    }
     await fetch('/api/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(settings),
+      body: JSON.stringify(payload),
     })
     setSaving(false)
     setSaved(true)
+    setDirtyFields(new Set())
     setTimeout(() => setSaved(false), 2000)
   }
 
@@ -201,7 +215,7 @@ export default function SettingsPage() {
                   <input
                     type={showKeys.groq ? 'text' : 'password'}
                     value={settings.groq_api_key}
-                    onChange={e => setSettings(s => ({ ...s, groq_api_key: e.target.value }))}
+                    onChange={e => { setSettings(s => ({ ...s, groq_api_key: e.target.value })); setDirtyFields(p => new Set(p).add('groq_api_key')) }}
                     className="input-field pr-10"
                     placeholder="gsk_..."
                   />
@@ -264,7 +278,7 @@ export default function SettingsPage() {
                   <input
                     type={showKeys.openrouter ? 'text' : 'password'}
                     value={settings.openrouter_api_key}
-                    onChange={e => setSettings(s => ({ ...s, openrouter_api_key: e.target.value }))}
+                    onChange={e => { setSettings(s => ({ ...s, openrouter_api_key: e.target.value })); setDirtyFields(p => new Set(p).add('openrouter_api_key')) }}
                     className="input-field pr-10"
                     placeholder="sk-or-..."
                   />
@@ -310,7 +324,7 @@ export default function SettingsPage() {
                 <input
                   type={showKeys.vapi ? 'text' : 'password'}
                   value={settings.vapi_api_key}
-                  onChange={e => setSettings(s => ({ ...s, vapi_api_key: e.target.value }))}
+                  onChange={e => { setSettings(s => ({ ...s, vapi_api_key: e.target.value })); setDirtyFields(p => new Set(p).add('vapi_api_key')) }}
                   className="input-field pr-10"
                   placeholder="Tu VAPI API key..."
                 />
