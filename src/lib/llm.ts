@@ -287,23 +287,29 @@ export async function optimizePrompt(
       role: 'system',
       content: `Eres un experto en prompt engineering para agentes de WhatsApp. Analiza los fallos y mejora el system prompt.
 
-Devuelve ÚNICAMENTE el prompt mejorado, sin explicaciones ni formato markdown.`,
+IMPORTANTE: El prompt mejorado DEBE estar en formato Markdown estructurado con:
+- Encabezados ## para secciones (## Identidad, ## Objetivo, ## Comportamiento, ## Reglas, etc.)
+- Listas con - para instrucciones y reglas
+- **Negrita** para términos y conceptos clave
+- Secciones bien separadas y organizadas
+
+Devuelve ÚNICAMENTE el prompt mejorado en Markdown, sin explicaciones adicionales.`,
     },
     {
       role: 'user',
-      content: `**System prompt actual:**
+      content: `## System prompt actual:
 ${currentPrompt}
 
-**Pruebas fallidas:**
+## Pruebas fallidas a corregir:
 ${failedTests.slice(0, 10).map((t, i) => `
-Fallo ${i + 1}:
-- Escenario: ${t.scenario}
-- Respuesta del agente: ${t.response}
-- Comportamiento esperado: ${t.expected}
-- Feedback: ${t.feedback}
+### Fallo ${i + 1}:
+- **Escenario:** ${t.scenario}
+- **Respuesta del agente:** ${t.response}
+- **Comportamiento esperado:** ${t.expected}
+- **Feedback:** ${t.feedback}
 `).join('\n')}
 
-Crea una versión mejorada del system prompt que corrija estos fallos.`,
+Crea una versión mejorada del system prompt en formato Markdown que corrija estos fallos.`,
     },
   ]
 

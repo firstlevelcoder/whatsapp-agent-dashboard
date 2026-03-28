@@ -477,21 +477,24 @@ export function buildSystemPrompt(
   const skillBlocks = selectedSkills.map(s => s.prompt_block).join('\n\n')
 
   const channelContext = channel === 'voice'
-    ? 'Eres un agente de IA para llamadas de voz.'
+    ? 'Eres un agente de IA para **llamadas de voz**.'
     : channel === 'both'
-    ? 'Eres un agente de IA disponible tanto por WhatsApp como por llamadas de voz.'
-    : 'Eres un agente de IA para WhatsApp.'
+    ? 'Eres un agente de IA disponible tanto por **WhatsApp** como por **llamadas de voz**.'
+    : 'Eres un agente de IA para **WhatsApp**.'
 
-  return `Eres ${agentName}. ${agentDescription}
+  return `# ${agentName}
 
+## Identidad
+**Nombre:** ${agentName}
+**Descripción:** ${agentDescription}
 ${channelContext}
 
+## Habilidades y Comportamiento
+
 ${skillBlocks}
-
-${customInstructions ? `INSTRUCCIONES ADICIONALES:\n${customInstructions}` : ''}
-
-REGLAS GENERALES:
-- Sé siempre honesto y transparente
+${customInstructions ? `\n## Instrucciones Adicionales\n${customInstructions}\n` : ''}
+## Reglas Generales
+- Sé siempre **honesto y transparente**
 - Si no sabes algo, dilo claramente y ofrece alternativas
 - Mantén un tono consistente con la marca
 - Protege la privacidad del usuario
