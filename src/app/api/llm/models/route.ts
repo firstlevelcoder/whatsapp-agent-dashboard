@@ -22,11 +22,13 @@ export async function GET(req: NextRequest) {
           }
         }
         if (provider.id === 'groq') {
-          const apiKey = await getSetting('groq_api_key')
+          let apiKey = process.env.GROQ_API_KEY || ''
+          if (!apiKey) try { apiKey = await getSetting('groq_api_key') } catch {}
           return { ...provider, available: Boolean(apiKey), configured: Boolean(apiKey) }
         }
         if (provider.id === 'openrouter') {
-          const apiKey = await getSetting('openrouter_api_key')
+          let apiKey = process.env.OPENROUTER_API_KEY || ''
+          if (!apiKey) try { apiKey = await getSetting('openrouter_api_key') } catch {}
           return { ...provider, available: Boolean(apiKey), configured: Boolean(apiKey) }
         }
         return provider
