@@ -1,15 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAllSettings, setSetting, getSetting } from '@/lib/db'
+import { getAllSettings, setSetting } from '@/lib/db'
 import { checkOllamaHealth, getOllamaModels } from '@/lib/llm'
+
+// Env var takes priority over DB for sensitive keys
+function resolveKey(dbValue: string | undefined, envVar: string): string {
+  return process.env[envVar] || dbValue || ''
+}
 
 export async function GET() {
   try {
-    const settings = await getAllSettings()
-    const masked = { ...settings }
+    let settings: Record<string, string> = {}
+    try {
+      settings = await getAllSettings()
+    } catch {
+      // Supabase might not be configured yet — return env-based defaults
+    }
+
+    // Merge env vars on top of DB values
+    const merged = {
+      ollama_url: settings.ollama_url || 'http://localhost:11434',
+      ollama_model: settings.ollama_model || 'llama3.2',
+      groq_api_key: resolveKey(settings.groq_api_key, 'GROQ_API_KEY'),
+      groq_model: settings.groq_model || 'llama-3.1-8b-instant',
+      openrouter_api_key: resolveKey(settings.openrouter_api_key, 'OPENROUTER_API_KEY'),
+      openrouter_model: settings.openrouter_model || 'meta-llama/llama-3.1-8b-instruct:free',
+      default_provider: resolveKey(settings.default_provider, 'DEFAULT_LLM_PROVIDER') || 'groq',
+      vapi_api_key: resolveKey(settings.vapi_api_key, 'VAPI_API_KEY'),
+      twilio_account_sid: settings.twilio_account_sid || '',
+      twilio_auth_token: settings.twilio_auth_token || '',
+      twilio_phone_number: settings.twilio_phone_number || '',
+    }
+
+    // Mask sensitive values before sending to browser
+    const masked = { ...merged }
     if (masked.groq_api_key) masked.groq_api_key = masked.groq_api_key.substring(0, 8) + '...'
     if (masked.openrouter_api_key) masked.openrouter_api_key = masked.openrouter_api_key.substring(0, 8) + '...'
     if (masked.vapi_api_key) masked.vapi_api_key = masked.vapi_api_key.substring(0, 8) + '...'
     if (masked.twilio_auth_token) masked.twilio_auth_token = '***'
+
     return NextResponse.json(masked)
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -26,8 +54,8 @@ export async function PUT(req: NextRequest) {
     ]
     for (const [key, value] of Object.entries(body)) {
       if (allowed.includes(key) && typeof value === 'string') {
-        if (value.includes('...') || value === '***') continue
-        await setSetting(key, value)
+        if (value.includes('...') || value === '***' || value === '') continue
+        try { await setSetting(key, value) } catch { /* Supabase not configured */ }
       }
     }
     return NextResponse.json({ success: true })
@@ -48,8 +76,15 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'test_groq') {
-      const apiKey = await getSetting('groq_api_key')
-      if (!apiKey) return NextResponse.json({ error: 'No API key configured' }, { status: 400 })
+      // Check env var first, then DB
+      let apiKey = process.env.GROQ_API_KEY || ''
+      if (!apiKey) {
+        try {
+          const { getSetting } = await import('@/lib/db')
+          apiKey = await getSetting('groq_api_key')
+        } catch {}
+      }
+      if (!apiKey) return NextResponse.json({ error: 'No API key configured. Add GROQ_API_KEY in Vercel env vars.' }, { status: 400 })
       const response = await fetch('https://api.groq.com/openai/v1/models', {
         headers: { Authorization: `Bearer ${apiKey}` },
         signal: AbortSignal.timeout(5000),
@@ -58,8 +93,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'test_openrouter') {
-      const apiKey = await getSetting('openrouter_api_key')
-      if (!apiKey) return NextResponse.json({ error: 'No API key configured' }, { status: 400 })
+      let apiKey = process.env.OPENROUTER_API_KEY || ''
+      if (!apiKey) {
+        try {
+          const { getSetting } = await import('@/lib/db')
+          apiKey = await getSetting('openrouter_api_key')
+        } catch {}
+      }
+      if (!apiKey) return NextResponse.json({ error: 'No API key configured. Add OPENROUTER_API_KEY in Vercel env vars.' }, { status: 400 })
       const response = await fetch('https://openrouter.ai/api/v1/models', {
         headers: { Authorization: `Bearer ${apiKey}` },
         signal: AbortSignal.timeout(5000),
