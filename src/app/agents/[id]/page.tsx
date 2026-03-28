@@ -1,14 +1,16 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft, Save, Wand2, Plus, Trash2, Play,
   MessageSquare, Phone, Zap, Bot, RefreshCw,
-  CheckCircle2, XCircle, ChevronDown, ChevronUp,
-  Download, Upload, Sparkles,
+  CheckCircle2, XCircle, Sparkles, Database,
 } from 'lucide-react'
 import { SKILLS, SKILL_CATEGORIES } from '@/lib/skills'
+
+// ~4 chars per token estimate
+function estimateTokens(text: string) { return Math.round(text.length / 4) }
 
 interface Agent {
   id: string; name: string; description: string
@@ -37,6 +39,8 @@ export default function AgentDetailPage() {
   const [scenarioForm, setScenarioForm] = useState({ name: '', description: '', user_message: '', expected_behavior: '' })
   const [importing, setImporting] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [bulkProgress, setBulkProgress] = useState<{ created: number; total: number; percent: number; current_type: string } | null>(null)
+  const [bulkCount, setBulkCount] = useState(100)
 
   const loadAgent = async () => {
     const res = await fetch(`/api/agents/${id}`)
@@ -125,19 +129,36 @@ export default function AgentDetailPage() {
 
   const handleGenerateScenarios = async () => {
     setGenerating(true)
+    setBulkProgress({ created: 0, total: bulkCount, percent: 0, current_type: 'iniciando...' })
     try {
-      const res = await fetch(`/api/agents/${id}/scenarios`, {
+      const res = await fetch(`/api/agents/${id}/scenarios/bulk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ai_generate: true, count: 20, category: 'general', provider: 'groq', model: 'llama-3.1-8b-instant' }),
+        body: JSON.stringify({ count: bulkCount, provider: 'groq', model: 'llama-3.1-8b-instant' }),
       })
-      const data = await res.json()
-      if (!res.ok) alert('Error generando escenarios: ' + (data.error || res.status))
-      else await loadScenarios()
+      if (!res.ok) { alert('Error: ' + res.status); return }
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const lines = decoder.decode(value).split('\n')
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const evt = JSON.parse(line.slice(6))
+            if (evt.type === 'progress' || evt.type === 'done') {
+              setBulkProgress({ created: evt.created, total: evt.total, percent: evt.percent ?? 100, current_type: evt.current_type || 'finalizando...' })
+            }
+            if (evt.type === 'done') await loadScenarios()
+          } catch {}
+        }
+      }
     } catch (e: any) {
       alert('Error: ' + e.message)
     } finally {
       setGenerating(false)
+      setTimeout(() => setBulkProgress(null), 3000)
     }
   }
 
@@ -331,7 +352,21 @@ export default function AgentDetailPage() {
                 <h3 className="text-sm font-semibold text-white">System Prompt</h3>
                 <p className="text-xs text-slate-500 mt-0.5">Instrucciones completas del agente. Se genera automáticamente de los skills.</p>
               </div>
-              <span className="text-xs text-slate-500">{(form.system_prompt || '').length} chars</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500">{(form.system_prompt || '').length} chars</span>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                  estimateTokens(form.system_prompt || '') > 4000
+                    ? 'bg-red-500/15 text-red-400'
+                    : estimateTokens(form.system_prompt || '') > 3000
+                    ? 'bg-amber-500/15 text-amber-400'
+                    : 'bg-emerald-500/15 text-emerald-400'
+                }`}>
+                  ~{estimateTokens(form.system_prompt || '')} tokens
+                </span>
+                {estimateTokens(form.system_prompt || '') > 4000 && (
+                  <span className="text-xs text-red-400">⚠ Supera 4000 tokens</span>
+                )}
+              </div>
             </div>
             <textarea
               value={form.system_prompt || ''}
@@ -347,32 +382,71 @@ export default function AgentDetailPage() {
       {/* Tab: Scenarios */}
       {tab === 'scenarios' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setNewScenario(true)}
-              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Nuevo Escenario
-            </button>
-            <button
-              onClick={() => handleImportTemplates('customer_service')}
-              disabled={importing}
-              className="flex items-center gap-2 bg-[#16162a] hover:bg-[#1e1e36] border border-white/10 text-slate-300 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
-            >
-              {importing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              Importar Templates
-            </button>
-            <button
-              onClick={handleGenerateScenarios}
-              disabled={generating}
-              className="flex items-center gap-2 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/20 text-emerald-400 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
-            >
-              {generating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              Generar con IA (20)
-            </button>
-          </div>
+          {/* Bulk generation panel */}
+          <div className="bg-[#16162a] border border-white/5 rounded-xl p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <Database className="w-4 h-4 text-emerald-400" />
+              <p className="text-sm font-semibold text-white">Generación Masiva con IA</p>
+              <span className="badge bg-emerald-500/15 text-emerald-400 text-xs">Groq Free</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 bg-[#0a0a14] border border-white/10 rounded-xl px-3 py-2">
+                <span className="text-xs text-slate-500">Cantidad:</span>
+                {[50, 100, 200, 300, 500].map(n => (
+                  <button
+                    key={n}
+                    onClick={() => setBulkCount(n)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${bulkCount === n ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={handleGenerateScenarios}
+                disabled={generating}
+                className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-500/30 text-black font-semibold px-4 py-2 rounded-xl text-sm transition-colors"
+              >
+                {generating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                {generating ? 'Generando...' : `Generar ${bulkCount} escenarios`}
+              </button>
+              <button
+                onClick={() => handleImportTemplates('customer_service')}
+                disabled={importing}
+                className="flex items-center gap-2 bg-[#0a0a14] hover:bg-white/5 border border-white/10 text-slate-400 px-3 py-2 rounded-xl text-sm transition-colors"
+              >
+                {importing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                Templates
+              </button>
+              <button
+                onClick={() => setNewScenario(true)}
+                className="flex items-center gap-2 bg-[#0a0a14] hover:bg-white/5 border border-white/10 text-slate-400 px-3 py-2 rounded-xl text-sm transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+                Manual
+              </button>
+            </div>
 
+            {/* Progress bar */}
+            {bulkProgress && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs text-slate-400">
+                    {generating ? `Generando tipo: ${bulkProgress.current_type}` : '¡Completado!'}
+                  </span>
+                  <span className="text-xs text-emerald-400 font-medium">
+                    {bulkProgress.created} / {bulkProgress.total}
+                  </span>
+                </div>
+                <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-400 rounded-full transition-all duration-300"
+                    style={{ width: `${bulkProgress.percent}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
           {/* New scenario form */}
           {newScenario && (
             <div className="bg-[#16162a] border border-indigo-500/30 rounded-xl p-5">
