@@ -107,24 +107,38 @@ export default function AgentDetailPage() {
 
   const handleImportTemplates = async (category: string) => {
     setImporting(true)
-    await fetch(`/api/agents/${id}/scenarios`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ import_template: true, template_category: category }),
-    })
-    await loadScenarios()
-    setImporting(false)
+    try {
+      const res = await fetch(`/api/agents/${id}/scenarios`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ import_template: true, template_category: category }),
+      })
+      const data = await res.json()
+      if (!res.ok) alert('Error importando templates: ' + (data.error || res.status))
+      else await loadScenarios()
+    } catch (e: any) {
+      alert('Error: ' + e.message)
+    } finally {
+      setImporting(false)
+    }
   }
 
   const handleGenerateScenarios = async () => {
     setGenerating(true)
-    await fetch(`/api/agents/${id}/scenarios`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ai_generate: true, count: 20, category: 'general' }),
-    })
-    await loadScenarios()
-    setGenerating(false)
+    try {
+      const res = await fetch(`/api/agents/${id}/scenarios`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ai_generate: true, count: 20, category: 'general', provider: 'groq', model: 'llama-3.1-8b-instant' }),
+      })
+      const data = await res.json()
+      if (!res.ok) alert('Error generando escenarios: ' + (data.error || res.status))
+      else await loadScenarios()
+    } catch (e: any) {
+      alert('Error: ' + e.message)
+    } finally {
+      setGenerating(false)
+    }
   }
 
   const handleDeleteScenario = async (scenarioId: string) => {
