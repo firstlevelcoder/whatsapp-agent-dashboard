@@ -79,12 +79,21 @@ export const PROVIDERS: LLMProvider[] = [
   },
 ]
 
+// Helper: env var takes priority over DB setting
+async function resolveSetting(key: string, envVar?: string): Promise<string> {
+  if (envVar && process.env[envVar]) return process.env[envVar]!
+  try { return (await getSetting(key)) || '' } catch { return '' }
+}
+
 export async function chat(
   messages: ChatMessage[],
   provider?: string,
   model?: string
 ): Promise<LLMResponse> {
-  const selectedProvider = provider || (await getSetting('default_provider')) || 'ollama'
+  const selectedProvider = provider
+    || process.env.DEFAULT_LLM_PROVIDER
+    || (await resolveSetting('default_provider'))
+    || 'groq'
 
   switch (selectedProvider) {
     case 'ollama':
@@ -129,8 +138,8 @@ async function chatOllama(messages: ChatMessage[], model?: string): Promise<LLMR
 }
 
 async function chatGroq(messages: ChatMessage[], model?: string): Promise<LLMResponse> {
-  const apiKey = (await getSetting('groq_api_key')) || process.env.GROQ_API_KEY || ''
-  const selectedModel = model || (await getSetting('groq_model')) || 'llama-3.1-8b-instant'
+  const apiKey = await resolveSetting('groq_api_key', 'GROQ_API_KEY')
+  const selectedModel = model || (await resolveSetting('groq_model', 'GROQ_MODEL')) || 'llama-3.1-8b-instant'
 
   if (!apiKey) throw new Error('Groq API key not configured. Get a free key at console.groq.com')
 
@@ -159,8 +168,8 @@ async function chatGroq(messages: ChatMessage[], model?: string): Promise<LLMRes
 }
 
 async function chatOpenRouter(messages: ChatMessage[], model?: string): Promise<LLMResponse> {
-  const apiKey = (await getSetting('openrouter_api_key')) || process.env.OPENROUTER_API_KEY || ''
-  const selectedModel = model || (await getSetting('openrouter_model')) || 'meta-llama/llama-3.1-8b-instruct:free'
+  const apiKey = await resolveSetting('openrouter_api_key', 'OPENROUTER_API_KEY')
+  const selectedModel = model || (await resolveSetting('openrouter_model', 'OPENROUTER_MODEL')) || 'meta-llama/llama-3.1-8b-instruct:free'
 
   if (!apiKey) throw new Error('OpenRouter API key not configured. Get a free key at openrouter.ai')
 
