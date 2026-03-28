@@ -7,43 +7,37 @@ type Params = Promise<{ id: string }>
 export async function POST(req: NextRequest, { params }: { params: Params }) {
   try {
     const { id } = await params
-    const body = await req.json()
-    const { provider, model, apply = false } = body
+    const { provider, model, apply = false } = await req.json()
 
-    const agent = getAgent(id)
+    const agent = await getAgent(id)
     if (!agent) return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
 
-    const allRuns = getTestRuns(id, 200)
+    const allRuns = await getTestRuns(id, 200)
     const failedRuns = allRuns.filter(r => !r.passed).slice(0, 20)
 
     if (failedRuns.length === 0) {
       return NextResponse.json({
-        message: 'No failed tests found. Run some tests first or your agent is already performing well!',
+        message: 'No failed tests found. Run some tests first!',
         current_prompt: agent.system_prompt,
         improved_prompt: null,
         improvements_count: 0,
       })
     }
 
-    const failedTests = failedRuns.map(run => {
-      const scenario = getScenario(run.scenario_id)
+    const failedTests = await Promise.all(failedRuns.map(async run => {
+      const scenario = await getScenario(run.scenario_id)
       return {
         scenario: scenario?.name || 'Unknown scenario',
         response: run.response,
         feedback: run.feedback,
         expected: scenario?.expected_behavior || '',
       }
-    })
+    }))
 
-    const improvedPrompt = await optimizePrompt(
-      agent.system_prompt,
-      failedTests,
-      provider,
-      model
-    )
+    const improvedPrompt = await optimizePrompt(agent.system_prompt, failedTests, provider, model)
 
     if (apply && improvedPrompt) {
-      updateAgent(id, { system_prompt: improvedPrompt })
+      await updateAgent(id, { system_prompt: improvedPrompt })
     }
 
     return NextResponse.json({

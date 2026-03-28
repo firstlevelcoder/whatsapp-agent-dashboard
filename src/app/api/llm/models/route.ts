@@ -10,46 +10,25 @@ export async function GET(req: NextRequest) {
     const providersWithStatus = await Promise.all(
       PROVIDERS.map(async (provider) => {
         if (provider.id === 'ollama') {
-          const baseUrl = getSetting('ollama_url') || 'http://localhost:11434'
-          const healthy = checkHealth ? await checkOllamaHealth(baseUrl) : null
+          const baseUrl = (await getSetting('ollama_url')) || 'http://localhost:11434'
+          const healthy = checkHealth ? await checkOllamaHealth(baseUrl) : false
           const installedModels = healthy ? await getOllamaModels(baseUrl) : []
-
-          const models = healthy && installedModels.length
-            ? installedModels.map(m => ({
-                id: m,
-                name: m,
-                context_length: 128000,
-                free: true,
-                installed: true,
-              }))
-            : provider.models.map(m => ({ ...m, installed: false }))
-
           return {
             ...provider,
             available: healthy,
-            models,
-            installed_models: installedModels,
+            models: healthy && installedModels.length
+              ? installedModels.map(m => ({ id: m, name: m, context_length: 128000, free: true, installed: true }))
+              : provider.models.map(m => ({ ...m, installed: false })),
           }
         }
-
         if (provider.id === 'groq') {
-          const apiKey = getSetting('groq_api_key')
-          return {
-            ...provider,
-            available: Boolean(apiKey),
-            configured: Boolean(apiKey),
-          }
+          const apiKey = await getSetting('groq_api_key')
+          return { ...provider, available: Boolean(apiKey), configured: Boolean(apiKey) }
         }
-
         if (provider.id === 'openrouter') {
-          const apiKey = getSetting('openrouter_api_key')
-          return {
-            ...provider,
-            available: Boolean(apiKey),
-            configured: Boolean(apiKey),
-          }
+          const apiKey = await getSetting('openrouter_api_key')
+          return { ...provider, available: Boolean(apiKey), configured: Boolean(apiKey) }
         }
-
         return provider
       })
     )

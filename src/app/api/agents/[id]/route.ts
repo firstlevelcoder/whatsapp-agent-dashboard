@@ -7,10 +7,9 @@ type Params = Promise<{ id: string }>
 export async function GET(req: NextRequest, { params }: { params: Params }) {
   try {
     const { id } = await params
-    const agent = getAgent(id)
+    const agent = await getAgent(id)
     if (!agent) return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
-
-    const stats = getAgentStats(id)
+    const stats = await getAgentStats(id)
     return NextResponse.json({ ...agent, stats })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -24,7 +23,7 @@ export async function PUT(req: NextRequest, { params }: { params: Params }) {
     const { rebuild_prompt, custom_instructions, ...updateData } = body
 
     if (rebuild_prompt && updateData.skills) {
-      const agent = getAgent(id)
+      const agent = await getAgent(id)
       if (agent) {
         updateData.system_prompt = buildSystemPrompt(
           updateData.name || agent.name,
@@ -36,9 +35,8 @@ export async function PUT(req: NextRequest, { params }: { params: Params }) {
       }
     }
 
-    const agent = updateAgent(id, updateData)
+    const agent = await updateAgent(id, updateData)
     if (!agent) return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
-
     return NextResponse.json(agent)
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -48,7 +46,7 @@ export async function PUT(req: NextRequest, { params }: { params: Params }) {
 export async function DELETE(req: NextRequest, { params }: { params: Params }) {
   try {
     const { id } = await params
-    const deleted = deleteAgent(id)
+    const deleted = await deleteAgent(id)
     if (!deleted) return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
     return NextResponse.json({ success: true })
   } catch (error: any) {

@@ -1,18 +1,10 @@
 import { NextResponse } from 'next/server'
-import { getDashboardStats, getAgents, getTestRuns } from '@/lib/db'
+import { getDashboardStats, getAgents } from '@/lib/db'
 
 export async function GET() {
   try {
-    const stats = getDashboardStats()
-    const agents = getAgents().slice(0, 5)
-
-    // Recent test activity (last 20 runs across all agents)
-    const recentActivity: any[] = []
-
-    return NextResponse.json({
-      stats,
-      recent_agents: agents,
-    })
+    const [stats, agents] = await Promise.all([getDashboardStats(), getAgents()])
+    return NextResponse.json({ stats, recent_agents: agents.slice(0, 5) })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
