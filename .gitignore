@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+.next/
+out/
+build/
+
+# Database (local data - keep structure but not data)
+data/*.db
+data/*.sqlite
+
+# Environment
+.env*.local
+.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+*.pem
+Thumbs.db
+
+# WhatsApp session
+.wwebjs_auth/
+.wwebjs_cache/
+
+# Misc
+.vercel
+*.tsbuildinfo
+next-env.d.ts
