@@ -487,29 +487,45 @@ export default function TestPage() {
 
               {optimizationResult && (
                 <div className="space-y-3">
-                  <div className="bg-[#16162a] border border-emerald-500/20 rounded-xl p-4">
-                    <p className="text-xs font-medium text-emerald-400 mb-1">✓ {optimizationResult.message}</p>
-                    <p className="text-xs text-slate-500">Se analizaron {optimizationResult.improvements_count} tests fallidos</p>
-                    {optimizationResult.applied && (
-                      <p className="text-xs text-indigo-400 mt-1">✓ El prompt ha sido actualizado en el agente</p>
-                    )}
-                  </div>
-
-                  {optimizationResult.improved_prompt && !optimizationResult.applied && (
-                    <div className="bg-[#16162a] border border-white/5 rounded-xl p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-xs font-semibold text-white">Prompt Sugerido</p>
-                        <button
-                          onClick={() => handleOptimize(true)}
-                          className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded-lg transition-colors"
-                        >
-                          Aplicar Ahora
-                        </button>
-                      </div>
-                      <pre className="text-xs text-slate-400 whitespace-pre-wrap font-mono bg-[#0a0a14] rounded-lg p-3 max-h-60 overflow-y-auto">
-                        {optimizationResult.improved_prompt}
-                      </pre>
+                  {optimizationResult.improvements_count === 0 ? (
+                    <div className="bg-[#16162a] border border-amber-500/20 rounded-xl p-4">
+                      <p className="text-xs font-medium text-amber-400 mb-1">⚠ No hay tests fallidos</p>
+                      <p className="text-xs text-slate-500">Primero corre tests en la pestaña "Tests en Lote". El optimizador analiza los resultados fallidos para mejorar el prompt.</p>
                     </div>
+                  ) : (
+                    <>
+                      <div className="bg-[#16162a] border border-emerald-500/20 rounded-xl p-4">
+                        <p className="text-xs font-medium text-emerald-400 mb-1">✓ {optimizationResult.message}</p>
+                        <p className="text-xs text-slate-500">Se analizaron {optimizationResult.improvements_count} tests fallidos</p>
+                        {optimizationResult.applied && (
+                          <p className="text-xs text-indigo-400 mt-1">✓ Prompt actualizado en el agente — ve al Builder para verlo</p>
+                        )}
+                      </div>
+
+                      {optimizationResult.improved_prompt && (
+                        <div className="bg-[#16162a] border border-violet-500/20 rounded-xl p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <p className="text-xs font-semibold text-white">Prompt Mejorado</p>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                {optimizationResult.applied ? 'Ya aplicado al agente' : 'Aún no aplicado'}
+                              </p>
+                            </div>
+                            {!optimizationResult.applied && (
+                              <button
+                                onClick={() => handleOptimize(true)}
+                                className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg transition-colors"
+                              >
+                                Aplicar Ahora
+                              </button>
+                            )}
+                          </div>
+                          <pre className="text-xs text-slate-300 whitespace-pre-wrap font-mono bg-[#0a0a14] rounded-lg p-3 max-h-96 overflow-y-auto leading-relaxed">
+                            {optimizationResult.improved_prompt}
+                          </pre>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
